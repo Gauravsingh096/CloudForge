@@ -1,0 +1,13 @@
+name: error-spike
+description: HTTP 5xx error rate exceeds 10% for 2+ minutes
+
+trigger:
+  metric: 'rate(http_requests_total{namespace="user-apps",status=~"5.."}[2m]) / rate(http_requests_total{namespace="user-apps"}[2m])'
+  threshold: 0.10      # hard trigger: >10% error rate
+  zscore: 3.0
+
+action:
+  type: rollback
+  lambda: rollback
+
+state_machine_arn: ""

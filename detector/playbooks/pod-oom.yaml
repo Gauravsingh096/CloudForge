@@ -1,0 +1,13 @@
+name: pod-oom
+description: Pod is OOM-killed or memory usage is critically high
+
+trigger:
+  metric: 'container_memory_usage_bytes{namespace="user-apps"} / container_spec_memory_limit_bytes{namespace="user-apps"}'
+  threshold: 0.90      # hard trigger: >90% memory used
+  zscore: 3.0          # or z-score spike vs rolling 10-min baseline
+
+action:
+  type: restart-pod
+  lambda: restart-pod
+
+state_machine_arn: ""  # set via STATE_MACHINE_ARN_PREFIX env var

@@ -1,0 +1,13 @@
+name: crashloop
+description: Pod is in CrashLoopBackOff — restart count spiking
+
+trigger:
+  metric: 'kube_pod_container_status_restarts_total{namespace="user-apps"}'
+  threshold: 5         # hard trigger: >5 restarts
+  zscore: 3.0
+
+action:
+  type: restart-pod
+  lambda: restart-pod
+
+state_machine_arn: ""

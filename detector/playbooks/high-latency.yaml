@@ -1,0 +1,15 @@
+name: high-latency
+description: p99 response latency exceeds 2 seconds for 2+ minutes
+
+trigger:
+  metric: 'histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{namespace="user-apps"}[2m]))'
+  threshold: 2.0       # hard trigger: p99 > 2s
+  zscore: 3.0
+
+action:
+  type: scale-deployment
+  lambda: scale-deployment
+  params:
+    replicas_delta: 1  # add one replica
+
+state_machine_arn: ""
