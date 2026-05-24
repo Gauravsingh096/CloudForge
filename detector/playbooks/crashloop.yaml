@@ -1,13 +1,12 @@
 name: crashloop
-description: Pod is in CrashLoopBackOff — restart count spiking
+description: Pod restart count exceeds threshold or spikes (z-score) — redeploy app
 
 trigger:
-  metric: 'kube_pod_container_status_restarts_total{namespace="user-apps"}'
-  threshold: 5         # hard trigger: >5 restarts
-  zscore: 3.0
+  threshold: 5      # hard trigger: >=5 restarts
+  zscore: 3.0       # or z-score spike vs rolling 10-min baseline
 
 action:
-  type: restart-pod
-  lambda: restart-pod
-
-state_machine_arn: ""
+  type: redeploy
+  app: cloudforge
+  project_id: "49642124-b57a-43f9-8dfa-57f835392f5d"
+  image: "ghcr.io/gauravsingh096/cloudforge-control-plane:latest"
