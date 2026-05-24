@@ -145,6 +145,21 @@ func (d *Deployer) Apply(ctx context.Context, deployID string) error {
 
 	log.Printf("deployer: applied deploy=%s app=%s image=%s\n%s",
 		deployID, appName, image, string(out))
+
+	// Smoke gate: wait for rollout to succeed before marking running
+	rollout := exec.CommandContext(ctx, "kubectl", "rollout", "status",
+		fmt.Sprintf("deployment/app-%s", appName),
+		"-n", "user-apps",
+		"--timeout=60s",
+	)
+	if rolloutOut, err := rollout.CombinedOutput(); err != nil {
+		d.setStatus(ctx, deployID, "failed")
+		metrics.DeployApplyDuration.WithLabelValues(appName, "failed").Observe(time.Since(start).Seconds())
+		metrics.DeploysTotal.WithLabelValues("failed").Inc()
+		return fmt.Errorf("smoke gate: rollout unhealthy: %w\n%s", err, string(rolloutOut))
+	}
+
+	log.Printf("deployer: smoke gate passed deploy=%s app=%s", deployID, appName)
 	d.setStatus(ctx, deployID, "running")
 	metrics.DeployApplyDuration.WithLabelValues(appName, "running").Observe(time.Since(start).Seconds())
 	metrics.DeploysTotal.WithLabelValues("running").Inc()

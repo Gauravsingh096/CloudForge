@@ -34,6 +34,8 @@ jobs:
 
       - name: go test
         run: go test ./...
+        # Unit tests always run; integration tests skip when DATABASE_URL is unset.
+        # build-images depends on this job — test failure blocks image push.
 
   detector:
     name: detector (Python)
