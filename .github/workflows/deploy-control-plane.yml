@@ -23,7 +23,7 @@ jobs:
           script: |
             set -e
 
-            IMAGE="ghcr.io/${{ github.repository_owner }}/cloudforge-control-plane:${{ github.sha }}"
+            IMAGE="ghcr.io/gauravsingh096/cloudforge-control-plane:${{ github.sha }}"
 
             # Pull the new image
             echo ${{ secrets.GITHUB_TOKEN }} | \
