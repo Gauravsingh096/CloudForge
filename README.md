@@ -17,7 +17,7 @@ CloudForge is a mini Heroku / Vercel — but open, self-hosted, and wired for re
 | **Custom HTTPS subdomains** | Every app gets `<name>.cloudforge.is-a.dev` automatically |
 | **Observable by default** | Prometheus + Grafana + Loki per app, zero config |
 | **Self-healing** | Python detector + AWS Step Functions auto-remediates OOM / CrashLoop / latency spikes |
-| **Regression gate** | Keploy records prod traffic, replays against canary — blocks bad deploys automatically |
+| **Regression gate** | it records prod traffic, replays against canary — blocks bad deploys automatically |
 
 ---
 
@@ -57,7 +57,6 @@ Full diagram → [ARCHITECTURE.md](ARCHITECTURE.md)
 | Observability | Prometheus + Grafana + Loki (self-hosted) |
 | Self-healing workflow | AWS Step Functions + Lambda |
 | Audit log | AWS DynamoDB |
-| Regression testing | Keploy OSS |
 | DNS / CDN / Tunnel | Cloudflare (free) |
 | CI/CD | GitHub Actions + ghcr.io |
 | Frontend | React (Vite) on Vercel |
@@ -89,7 +88,6 @@ cloudforge/
 - [ ] GitHub webhook → build → deploy pipeline
 - [ ] Prometheus + Grafana observability
 - [ ] Self-healing engine (detector + Step Functions + Lambda)
-- [ ] Keploy regression gate
 
 ---
 
