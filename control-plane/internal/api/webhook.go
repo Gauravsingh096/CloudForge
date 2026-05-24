@@ -109,7 +109,7 @@ func buildImageName(fullName, sha string) string {
 }
 
 func verifyGithubSignature(body []byte, signature string) bool {
-	secret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+	secret := os.Getenv("WEBHOOK_SECRET")
 	if secret == "" {
 		return true
 	}
