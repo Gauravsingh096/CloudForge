@@ -2,6 +2,7 @@
 # CloudForge — Private files (NOT for public)
 # ============================================
 CloudForge_Project_Handoff.md
+.claude/settings.local.json
 *.private.md
 .secrets/
 .env
