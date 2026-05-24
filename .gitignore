@@ -1,0 +1,118 @@
+# ============================================
+# CloudForge — Private files (NOT for public)
+# ============================================
+CloudForge_Project_Handoff.md
+*.private.md
+.secrets/
+.env
+.env.*
+!.env.example
+
+# ============================================
+# Secrets / credentials — NEVER commit
+# ============================================
+*.pem
+*.key
+*.crt
+!**/testdata/**/*.crt
+!**/testdata/**/*.key
+id_rsa
+id_ed25519
+*.kubeconfig
+kubeconfig
+credentials.json
+aws-credentials
+.aws/
+
+# ============================================
+# OS files
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ============================================
+# IDE / Editor
+# ============================================
+.vscode/
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# ============================================
+# Go (control-plane)
+# ============================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+/bin/
+/dist/
+
+# ============================================
+# Python (detector, lambdas)
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ============================================
+# Node / React (dashboard, docs)
+# ============================================
+node_modules/
+.pnp/
+.pnp.js
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.turbo/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================
+# Terraform (infrastructure/aws)
+# ============================================
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# ============================================
+# Docker
+# ============================================
+*.tar
+docker-compose.override.yml
+
+# ============================================
+# Logs / temp
+# ============================================
+logs/
+*.log
+tmp/
+temp/
