@@ -1,0 +1,59 @@
+{
+  "name": "CloudForge Dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+
+  // k3s needs privileged mode to run Kubernetes inside the Codespace container
+  "runArgs": ["--privileged", "--cgroupns=host"],
+  "mounts": [
+    "source=/sys/fs/cgroup,target=/sys/fs/cgroup,type=bind,consistency=cached"
+  ],
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1":     { "version": "1.22" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
+    "ghcr.io/devcontainers/features/node:1":   { "version": "20" },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "latest",
+      "helm": "latest",
+      "minikube": "none"
+    }
+  },
+
+  // Runs ONCE when Codespace is first created — installs k3s, cloudflared, k9s
+  "onCreateCommand": "bash .devcontainer/on-create.sh",
+
+  // Runs EVERY TIME the Codespace starts — boots k3s and Cloudflare Tunnel
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
+  "forwardPorts": [8080, 5173, 9090, 3001],
+  "portsAttributes": {
+    "8080": { "label": "Control Plane API",  "onAutoForward": "notify" },
+    "5173": { "label": "Dashboard (Vite)",    "onAutoForward": "openBrowser" },
+    "9090": { "label": "Prometheus",          "onAutoForward": "notify" },
+    "3001": { "label": "Grafana",             "onAutoForward": "notify" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  // Codespace secrets needed (set in github.com/settings/codespaces):
+  //   CF_TUNNEL_TOKEN   — Cloudflare Tunnel token for cloudforge.is-a.dev
+  //   DATABASE_URL      — Neon Postgres connection string
+  //   GITHUB_WEBHOOK_SECRET — for the control plane webhook handler
+  "secrets": {}
+}

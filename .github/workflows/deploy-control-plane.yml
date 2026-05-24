@@ -1,42 +1,34 @@
+# Deploy workflow — Codespaces edition
+#
+# With GitHub Codespaces as compute (instead of Oracle VM), there is no
+# always-on server to SSH into. Deployment is done manually inside the
+# Codespace after CI builds and pushes the image to ghcr.io.
+#
+# To deploy a new image inside your Codespace, run:
+#   kubectl set image deployment/cloudforge-control-plane \
+#     control-plane=ghcr.io/gauravsingh096/cloudforge-control-plane:<sha> \
+#     -n cloudforge-system
+#
+# This workflow is intentionally disabled (no trigger) until a persistent
+# server is available (e.g. if Oracle Cloud is set up later).
+
 name: Deploy control-plane
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Image SHA to deploy (leave blank for latest)"
+        required: false
 
 jobs:
-  deploy:
-    name: SSH deploy to Oracle VM
+  notify:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORACLE_VM_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_VM_SSH_KEY }}
-          script: |
-            set -e
-
-            IMAGE="ghcr.io/gauravsingh096/cloudforge-control-plane:${{ github.sha }}"
-
-            # Pull the new image
-            echo ${{ secrets.GITHUB_TOKEN }} | \
-              docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull $IMAGE
-
-            # Apply K8s manifest with new image
-            kubectl set image deployment/cloudforge-control-plane \
-              control-plane=$IMAGE \
-              -n cloudforge-system
-
-            # Wait for rollout
-            kubectl rollout status deployment/cloudforge-control-plane \
-              -n cloudforge-system --timeout=120s
-
-            echo "Deploy complete: $IMAGE"
+      - name: Print deploy instructions
+        run: |
+          echo "Running on Codespaces — open your Codespace and run:"
+          echo ""
+          echo "  kubectl set image deployment/cloudforge-control-plane \\"
+          echo "    control-plane=ghcr.io/gauravsingh096/cloudforge-control-plane:${{ github.sha }} \\"
+          echo "    -n cloudforge-system"
