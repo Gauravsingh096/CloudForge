@@ -1,0 +1,45 @@
+# Helm values for kube-prometheus-stack on Oracle ARM VM (low-resource tuned)
+# helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack \
+#   -n monitoring --create-namespace -f prometheus-values.yaml
+
+grafana:
+  enabled: true
+  adminPassword: ""  # set via --set grafana.adminPassword=<password>
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.cloudforge.is-a.dev
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.cloudforge.is-a.dev
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 10Gi
+
+alertmanager:
+  enabled: false  # using Discord webhooks instead
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

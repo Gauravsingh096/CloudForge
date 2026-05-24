@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudforge-control-plane
+  namespace: cloudforge-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudforge-control-plane
+  template:
+    metadata:
+      labels:
+        app: cloudforge-control-plane
+    spec:
+      containers:
+        - name: control-plane
+          image: ghcr.io/gauravsingh096/cloudforge-control-plane:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: cloudforge-secrets
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudforge-control-plane
+  namespace: cloudforge-system
+spec:
+  selector:
+    app: cloudforge-control-plane
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudforge-control-plane
+  namespace: cloudforge-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - api.cloudforge.is-a.dev
+      secretName: cloudforge-api-tls
+  rules:
+    - host: api.cloudforge.is-a.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudforge-control-plane
+                port:
+                  number: 80
