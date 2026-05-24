@@ -6,25 +6,26 @@ set -euo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 # ── k3s ────────────────────────────────────────────────────────────────────
-if pgrep -x k3s > /dev/null; then
-  echo "==> k3s already running"
-else
-  echo "==> Starting k3s..."
-  # --snapshotter=native required in Codespaces — overlayfs not supported in nested containers
-  sudo nohup k3s server \
-    --disable=traefik \
-    --disable=servicelb \
-    --write-kubeconfig-mode=644 \
-    --snapshotter=native \
-    > /tmp/k3s.log 2>&1 &
+# Kill any existing k3s instances (prevents multiple conflicting processes on resume)
+echo "==> Stopping any existing k3s instances..."
+sudo pkill -x k3s 2>/dev/null || true
+sleep 3
 
-  echo -n "==> Waiting for k3s to be ready"
-  until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
-    echo -n "."
-    sleep 3
-  done
-  echo " ready!"
-fi
+echo "==> Starting k3s..."
+# --snapshotter=native required in Codespaces — overlayfs not supported in nested containers
+sudo nohup k3s server \
+  --disable=traefik \
+  --disable=servicelb \
+  --write-kubeconfig-mode=644 \
+  --snapshotter=native \
+  > /tmp/k3s.log 2>&1 &
+
+echo -n "==> Waiting for k3s to be ready"
+until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
+  echo -n "."
+  sleep 3
+done
+echo " ready!"
 
 # Apply core manifests (namespace + control plane deployment)
 echo "==> Applying K8s manifests..."
