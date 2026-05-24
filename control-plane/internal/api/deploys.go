@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Gauravsingh096/cloudforge/control-plane/internal/metrics"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -67,6 +68,7 @@ func (h *Handler) CreateDeploy(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	metrics.DeploysTotal.WithLabelValues("pending").Inc()
 	writeJSON(w, http.StatusCreated, d)
 }
 

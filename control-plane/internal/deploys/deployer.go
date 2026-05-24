@@ -8,6 +8,9 @@ import (
 	"log"
 	"os/exec"
 	"text/template"
+	"time"
+
+	"github.com/Gauravsingh096/cloudforge/control-plane/internal/metrics"
 )
 
 type Deployer struct {
@@ -94,6 +97,8 @@ spec:
 
 // Apply generates K8s manifests for the app and runs kubectl apply.
 func (d *Deployer) Apply(ctx context.Context, deployID string) error {
+	start := time.Now()
+
 	// fetch deploy + project info
 	var appName, image, subdomain string
 	err := d.db.QueryRowContext(ctx, `
@@ -133,12 +138,16 @@ func (d *Deployer) Apply(ctx context.Context, deployID string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		d.setStatus(ctx, deployID, "failed")
+		metrics.DeployApplyDuration.WithLabelValues(appName, "failed").Observe(time.Since(start).Seconds())
+		metrics.DeploysTotal.WithLabelValues("failed").Inc()
 		return fmt.Errorf("kubectl apply: %w\n%s", err, string(out))
 	}
 
 	log.Printf("deployer: applied deploy=%s app=%s image=%s\n%s",
 		deployID, appName, image, string(out))
 	d.setStatus(ctx, deployID, "running")
+	metrics.DeployApplyDuration.WithLabelValues(appName, "running").Observe(time.Since(start).Seconds())
+	metrics.DeploysTotal.WithLabelValues("running").Inc()
 	return nil
 }
 

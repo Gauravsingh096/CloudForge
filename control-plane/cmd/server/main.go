@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -41,6 +42,7 @@ func router(database *sql.DB) http.Handler {
 	h := api.NewHandler(database)
 
 	r.Get("/healthz", h.Healthz)
+	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/projects", h.ListProjects)
