@@ -10,10 +10,12 @@ if pgrep -x k3s > /dev/null; then
   echo "==> k3s already running"
 else
   echo "==> Starting k3s..."
+  # --snapshotter=native required in Codespaces — overlayfs not supported in nested containers
   sudo nohup k3s server \
     --disable=traefik \
     --disable=servicelb \
     --write-kubeconfig-mode=644 \
+    --snapshotter=native \
     > /tmp/k3s.log 2>&1 &
 
   echo -n "==> Waiting for k3s to be ready"
