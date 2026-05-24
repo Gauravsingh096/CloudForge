@@ -1,0 +1,42 @@
+name: Deploy control-plane
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: SSH deploy to Oracle VM
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_VM_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+          script: |
+            set -e
+
+            IMAGE="ghcr.io/${{ github.repository_owner }}/cloudforge-control-plane:${{ github.sha }}"
+
+            # Pull the new image
+            echo ${{ secrets.GITHUB_TOKEN }} | \
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull $IMAGE
+
+            # Apply K8s manifest with new image
+            kubectl set image deployment/cloudforge-control-plane \
+              control-plane=$IMAGE \
+              -n cloudforge-system
+
+            # Wait for rollout
+            kubectl rollout status deployment/cloudforge-control-plane \
+              -n cloudforge-system --timeout=120s
+
+            echo "Deploy complete: $IMAGE"
