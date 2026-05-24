@@ -50,6 +50,7 @@ func router(database *sql.DB) http.Handler {
 
 		r.Post("/deploys", h.CreateDeploy)
 		r.Get("/deploys/{id}", h.GetDeploy)
+		r.Post("/deploys/{id}/apply", h.ApplyDeploy)
 
 		r.Post("/webhook/github", h.GithubWebhook)
 	})
