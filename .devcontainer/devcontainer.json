@@ -16,7 +16,9 @@
       "version": "latest",
       "helm": "latest",
       "minikube": "none"
-    }
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "version": "latest" },
+    "ghcr.io/devcontainers/features/github-cli:1":       { "version": "latest" }
   },
 
   // Runs ONCE when Codespace is first created — installs k3s, cloudflared, k9s
