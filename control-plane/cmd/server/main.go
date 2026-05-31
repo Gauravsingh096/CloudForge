@@ -54,6 +54,12 @@ func router(database *sql.DB) http.Handler {
 		r.Get("/deploys/{id}", h.GetDeploy)
 		r.Post("/deploys/{id}/apply", h.ApplyDeploy)
 
+		// Internal ops — called by Lambda remediation functions via Step Functions.
+		// Protected by X-Internal-Key header (set INTERNAL_API_KEY env var in prod).
+		r.Post("/apps/{name}/restart", h.RestartApp)
+		r.Post("/apps/{name}/scale", h.ScaleApp)
+		r.Post("/apps/{name}/rollback", h.RollbackApp)
+
 		r.Post("/webhook/github", h.GithubWebhook)
 	})
 

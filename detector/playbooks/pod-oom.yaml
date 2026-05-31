@@ -9,5 +9,6 @@ trigger:
 action:
   type: restart-pod
   lambda: restart-pod
+  app: sample-app      # name of the CloudForge project (kubectl uses app-<name>)
 
 state_machine_arn: ""  # set via STATE_MACHINE_ARN_PREFIX env var

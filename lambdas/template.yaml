@@ -1,0 +1,297 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  CloudForge self-healing — Lambda remediation functions + DynamoDB audit log
+  + Step Functions state machines. Entire stack on AWS free tier.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parameters — pass these on deploy:
+#   sam deploy --guided
+# ─────────────────────────────────────────────────────────────────────────────
+Parameters:
+  ControlPlaneUrl:
+    Type: String
+    Description: "CloudForge control-plane URL (e.g. https://cloudforge.is-a.dev)"
+
+  InternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: "Shared secret for X-Internal-Key header — set INTERNAL_API_KEY on control-plane too"
+
+  DiscordWebhookUrl:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "Discord webhook URL for alerts (leave empty to disable)"
+
+  AuditTableName:
+    Type: String
+    Default: cloudforge-audit-log
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Globals
+# ─────────────────────────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    Layers:
+      - !Ref SharedLayer
+    Environment:
+      Variables:
+        CONTROL_PLANE_URL: !Ref ControlPlaneUrl
+        INTERNAL_API_KEY: !Ref InternalApiKey
+        DISCORD_WEBHOOK_URL: !Ref DiscordWebhookUrl
+        AUDIT_TABLE: !Ref AuditTableName
+        AWS_ACCOUNT_ID: !Ref AWS::AccountId
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resources
+# ─────────────────────────────────────────────────────────────────────────────
+Resources:
+
+  # ── DynamoDB audit log ────────────────────────────────────────────────────
+  AuditLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref AuditTableName
+      BillingMode: PAY_PER_REQUEST      # free tier: 25 GB + 25 RCU/WCU
+      AttributeDefinitions:
+        - AttributeName: event_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: event_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true                   # 90-day auto-expiry set in audit.py
+
+  # ── IAM: Lambda execution role ───────────────────────────────────────────
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cloudforge-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: dynamo-write
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt AuditLogTable.Arn
+
+  # ── IAM: Step Functions execution role ───────────────────────────────────
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cloudforge-sfn-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub states.${AWS::Region}.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-lambdas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt RestartPodFunction.Arn
+                  - !GetAtt ScaleDeploymentFunction.Arn
+                  - !GetAtt RollbackFunction.Arn
+
+  # ── Shared layer: cp_client + notify + audit ─────────────────────────────
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: cloudforge-shared
+      ContentUri: shared-layer/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.12
+
+  # ── Lambda functions ──────────────────────────────────────────────────────
+  RestartPodFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cloudforge-restart-pod
+      CodeUri: restart-pod/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Description: "Restart OOM/crashing pod via kubectl rollout restart"
+
+  ScaleDeploymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cloudforge-scale-deployment
+      CodeUri: scale-deployment/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Description: "Scale up deployment replica count on high latency"
+
+  RollbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cloudforge-rollback
+      CodeUri: rollback/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Description: "kubectl rollout undo on error spike"
+
+  # ── Allow Step Functions to invoke each Lambda ────────────────────────────
+  RestartPodPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt RestartPodFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: states.amazonaws.com
+
+  ScaleDeploymentPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ScaleDeploymentFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: states.amazonaws.com
+
+  RollbackPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt RollbackFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: states.amazonaws.com
+
+  # ── Step Functions state machines (one per playbook) ─────────────────────
+  # Naming convention: cloudforge-<playbook-name>
+  # detector/stepfunctions.py resolves ARN as: STATE_MACHINE_ARN_PREFIX + playbook["name"]
+  # Set env var: STATE_MACHINE_ARN_PREFIX=arn:aws:states:<region>:<account>:stateMachine:cloudforge-
+
+  PodOomStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: cloudforge-pod-oom
+      Role: !GetAtt StepFunctionsRole.Arn
+      Definition:
+        Comment: "CloudForge: restart OOM pod"
+        StartAt: RestartPod
+        States:
+          RestartPod:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt RestartPodFunction.Arn
+              Payload.$: "$"
+            ResultSelector:
+              result.$: "$.Payload"
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 5
+                MaxAttempts: 2
+                BackoffRate: 2
+            End: true
+
+  CrashloopStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: cloudforge-crashloop
+      Role: !GetAtt StepFunctionsRole.Arn
+      Definition:
+        Comment: "CloudForge: restart crash-looping pod"
+        StartAt: RestartPod
+        States:
+          RestartPod:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt RestartPodFunction.Arn
+              Payload.$: "$"
+            ResultSelector:
+              result.$: "$.Payload"
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 5
+                MaxAttempts: 2
+                BackoffRate: 2
+            End: true
+
+  HighLatencyStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: cloudforge-high-latency
+      Role: !GetAtt StepFunctionsRole.Arn
+      Definition:
+        Comment: "CloudForge: scale up on high latency"
+        StartAt: ScaleDeployment
+        States:
+          ScaleDeployment:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt ScaleDeploymentFunction.Arn
+              Payload.$: "$"
+            ResultSelector:
+              result.$: "$.Payload"
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 5
+                MaxAttempts: 2
+                BackoffRate: 2
+            End: true
+
+  ErrorSpikeStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: cloudforge-error-spike
+      Role: !GetAtt StepFunctionsRole.Arn
+      Definition:
+        Comment: "CloudForge: rollback on error spike"
+        StartAt: Rollback
+        States:
+          Rollback:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: !GetAtt RollbackFunction.Arn
+              Payload.$: "$"
+            ResultSelector:
+              result.$: "$.Payload"
+            Retry:
+              - ErrorEquals: [States.TaskFailed]
+                IntervalSeconds: 5
+                MaxAttempts: 2
+                BackoffRate: 2
+            End: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Outputs — paste these into detector .env
+# ─────────────────────────────────────────────────────────────────────────────
+Outputs:
+  AuditTableName:
+    Value: !Ref AuditLogTable
+    Description: "Set AUDIT_TABLE in Lambda env vars"
+
+  StateMachineArnPrefix:
+    Value: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:cloudforge-"
+    Description: "Set STATE_MACHINE_ARN_PREFIX in detector env"
+
+  RestartPodArn:
+    Value: !GetAtt RestartPodFunction.Arn
+  ScaleDeploymentArn:
+    Value: !GetAtt ScaleDeploymentFunction.Arn
+  RollbackArn:
+    Value: !GetAtt RollbackFunction.Arn

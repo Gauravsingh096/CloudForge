@@ -9,5 +9,6 @@ trigger:
 action:
   type: rollback
   lambda: rollback
+  app: sample-app      # name of the CloudForge project (kubectl uses app-<name>)
 
 state_machine_arn: ""

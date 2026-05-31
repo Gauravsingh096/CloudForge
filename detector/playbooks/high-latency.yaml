@@ -9,6 +9,7 @@ trigger:
 action:
   type: scale-deployment
   lambda: scale-deployment
+  app: sample-app      # name of the CloudForge project (kubectl uses app-<name>)
   params:
     replicas_delta: 1  # add one replica
 
