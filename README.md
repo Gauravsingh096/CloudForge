@@ -7,7 +7,7 @@
 
 ---
 
-## What is CloudForge?
+## What is CloudForge ?
 
 CloudForge is a mini Heroku / Vercel — but open, self-hosted, and wired for reliability:
 
